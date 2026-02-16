@@ -4,13 +4,14 @@ import { SyncButton } from './components/SyncButton';
 import { StatusBar } from './components/StatusBar';
 import { useGoogleSheets } from './hooks/useGoogleSheets';
 import { useHourCalculations } from './hooks/useHourCalculations';
-import { useTargetHours, useSkipStates } from './hooks/useLocalStorage';
+import { useTargetHours, useSkipStates, useSheetId } from './hooks/useLocalStorage';
 import { getSheetTabName } from './utils/calendar';
 
 function App() {
   const [target, setTarget] = useTargetHours();
   const [skippedDays, toggleSkip] = useSkipStates();
-  const { workedHours, syncState, sync } = useGoogleSheets();
+  const [sheetId, setSheetId] = useSheetId();
+  const { workedHours, syncState, sync } = useGoogleSheets(sheetId);
   const calculations = useHourCalculations(workedHours, target, skippedDays);
 
   const monthLabel = getSheetTabName();
@@ -21,7 +22,12 @@ function App() {
         <h1 className="text-2xl font-bold text-gray-800">{monthLabel}</h1>
         <div className="mt-3 flex items-center justify-between flex-wrap gap-3">
           <TargetInput target={target} onChange={setTarget} />
-          <SyncButton syncState={syncState} onSync={sync} />
+          <SyncButton
+            syncState={syncState}
+            onSync={sync}
+            sheetId={sheetId}
+            onSheetIdChange={setSheetId}
+          />
         </div>
       </header>
 

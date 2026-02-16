@@ -6,6 +6,30 @@ const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
 let tokenClient: google.accounts.oauth2.TokenClient | null = null;
 let accessToken: string | null = null;
 
+function saveToken(token: string, expiresIn: number) {
+  accessToken = token;
+  const expiresAt = Date.now() + expiresIn * 1000;
+  localStorage.setItem('google_access_token', token);
+  localStorage.setItem('google_token_expires_at', String(expiresAt));
+}
+
+function loadToken(): string | null {
+  const token = localStorage.getItem('google_access_token');
+  const expiresAt = localStorage.getItem('google_token_expires_at');
+  if (token && expiresAt && Date.now() < Number(expiresAt)) {
+    accessToken = token;
+    return token;
+  }
+  clearToken();
+  return null;
+}
+
+function clearToken() {
+  accessToken = null;
+  localStorage.removeItem('google_access_token');
+  localStorage.removeItem('google_token_expires_at');
+}
+
 export function initGoogleAuth(): Promise<void> {
   return new Promise((resolve, reject) => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -22,6 +46,7 @@ export function initGoogleAuth(): Promise<void> {
         scope: SCOPES,
         callback: () => {}, // overridden at request time
       });
+      loadToken();
       resolve();
     };
     script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
@@ -41,22 +66,20 @@ export function requestAccessToken(): Promise<string> {
         reject(new Error(response.error));
         return;
       }
-      accessToken = response.access_token;
+      saveToken(response.access_token, response.expires_in);
       resolve(response.access_token);
     };
 
     if (accessToken) {
-      // Try to use existing token
       resolve(accessToken);
     } else {
-      tokenClient.requestAccessToken({ prompt: 'consent' });
+      tokenClient.requestAccessToken({ prompt: '' });
     }
   });
 }
 
-export async function fetchSheetData(): Promise<WorkedHoursMap> {
-  const sheetId = import.meta.env.VITE_GOOGLE_SHEET_ID;
-  if (!sheetId) throw new Error('VITE_GOOGLE_SHEET_ID not set in .env');
+export async function fetchSheetData(sheetId: string): Promise<WorkedHoursMap> {
+  if (!sheetId) throw new Error('No Google Sheet ID configured');
 
   const token = accessToken || (await requestAccessToken());
   const tabName = getSheetTabName();
@@ -68,8 +91,8 @@ export async function fetchSheetData(): Promise<WorkedHoursMap> {
   });
 
   if (res.status === 401) {
-    // Token expired, request new one
-    accessToken = null;
+    // Token expired, clear and request new one
+    clearToken();
     const newToken = await requestAccessToken();
     const retryRes = await fetch(url, {
       headers: { Authorization: `Bearer ${newToken}` },
@@ -78,8 +101,16 @@ export async function fetchSheetData(): Promise<WorkedHoursMap> {
     return parseSheetResponse(await retryRes.json());
   }
 
-  if (!res.ok) throw new Error(`Sheet API error: ${res.status}`);
-  return parseSheetResponse(await res.json());
+  if (!res.ok) {
+    const body = await res.text();
+    console.error('Sheet API error:', res.status, body);
+    throw new Error(`Sheet API error: ${res.status}`);
+  }
+  const json = await res.json();
+  console.log('Sheet API response:', json);
+  const result = parseSheetResponse(json);
+  console.log('Parsed worked hours:', result);
+  return result;
 }
 
 function parseSheetResponse(data: { values?: string[][] }): WorkedHoursMap {
@@ -99,7 +130,10 @@ function parseSheetResponse(data: { values?: string[][] }): WorkedHoursMap {
     if (!parsed) continue;
 
     // Only include dates from the current month
-    if (parsed.month !== month || parsed.year !== year) continue;
+    if (parsed.month !== month || parsed.year !== year) {
+      console.warn(`Skipping row with date ${dateStr} — expected ${String(month + 1).padStart(2, '0')}/**/${year}`);
+      continue;
+    }
 
     const hours = parseFloat(hoursStr);
     if (isNaN(hours)) continue;

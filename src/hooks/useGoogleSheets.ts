@@ -3,7 +3,7 @@ import type { WorkedHoursMap, SyncState } from '../types';
 import { initGoogleAuth, fetchSheetData } from '../utils/sheets';
 import { useCachedSheetData } from './useLocalStorage';
 
-export function useGoogleSheets() {
+export function useGoogleSheets(sheetId: string) {
   const [workedHours, setWorkedHours] = useState<WorkedHoursMap>({});
   const [syncState, setSyncState] = useState<SyncState>({
     loading: false,
@@ -35,7 +35,7 @@ export function useGoogleSheets() {
   const sync = useCallback(async () => {
     setSyncState({ loading: true, error: null, lastSynced: null });
     try {
-      const data = await fetchSheetData();
+      const data = await fetchSheetData(sheetId);
       setWorkedHours(data);
       setCached(data);
       setSyncState({ loading: false, error: null, lastSynced: new Date() });
@@ -48,7 +48,7 @@ export function useGoogleSheets() {
         lastSynced: null,
       });
     }
-  }, [setCached, getCached]);
+  }, [sheetId, setCached, getCached]);
 
   // Auto-sync once auth is ready
   const autoSynced = useRef(false);

@@ -55,6 +55,24 @@ export function useSkipStates(): [
   return [skipStates.days, toggleSkip];
 }
 
+export function useSheetId(): [string, (value: string) => void, () => void] {
+  const [sheetId, setSheetIdState] = useState<string>(() => {
+    return localStorage.getItem('sheetId') || '';
+  });
+
+  const setSheetId = useCallback((value: string) => {
+    setSheetIdState(value);
+    localStorage.setItem('sheetId', value);
+  }, []);
+
+  const clearSheetId = useCallback(() => {
+    setSheetIdState('');
+    localStorage.removeItem('sheetId');
+  }, []);
+
+  return [sheetId, setSheetId, clearSheetId];
+}
+
 export function useCachedSheetData() {
   const cacheKey = `sheetCache_${getMonthKey()}`;
 
