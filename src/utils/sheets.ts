@@ -38,19 +38,22 @@ export function initGoogleAuth(): Promise<void> {
       return;
     }
 
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.onload = () => {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: SCOPES,
-        callback: () => {}, // overridden at request time
-      });
-      loadToken();
-      resolve();
-    };
-    script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
-    document.head.appendChild(script);
+    // Wait for the GIS script (loaded via index.html) to be available
+    function tryInit() {
+      if (typeof google !== 'undefined' && google.accounts?.oauth2) {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: SCOPES,
+          callback: () => {}, // overridden at request time
+        });
+        loadToken();
+        resolve();
+      } else {
+        setTimeout(tryInit, 100);
+      }
+    }
+
+    tryInit();
   });
 }
 
