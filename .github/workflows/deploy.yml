@@ -33,6 +33,7 @@ jobs:
       - run: npm run build
         env:
           BASE_PATH: /hour-planner/
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
       - uses: actions/configure-pages@v5
 
