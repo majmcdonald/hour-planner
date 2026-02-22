@@ -20,7 +20,7 @@ export function useHourCalculations(
 ): HourCalculations {
   return useMemo(() => {
     const totalDays = getCurrentMonthDays();
-    const futureDays = getFutureDays();
+    const futureDays = getFutureDays(workedHours);
     const totalWorked = calculateTotalWorked(workedHours);
     const goalReached = totalWorked >= target;
 
@@ -36,10 +36,11 @@ export function useHourCalculations(
 
     const days: DayData[] = [];
     for (let d = 1; d <= totalDays; d++) {
-      const past = isDayPast(d);
       const today = isDayToday(d);
+      const todayIsPast = today && (workedHours[d] || 0) > 0;
+      const past = isDayPast(d) || todayIsPast;
       const isSkipped = !!skippedDays[d];
-      const isFuture = !past; // today counts as future
+      const isFuture = !past;
 
       days.push({
         date: d,

@@ -5,12 +5,14 @@ export function calculateTotalWorked(workedHours: WorkedHoursMap): number {
   return Object.values(workedHours).reduce((sum, h) => sum + h, 0);
 }
 
-export function getFutureDays(): number[] {
+export function getFutureDays(workedHours: WorkedHoursMap): number[] {
   const today = getToday();
   const totalDays = getCurrentMonthDays();
+  const todayHasData = (workedHours[today] || 0) > 0;
   const days: number[] = [];
-  // Today and all days after today are "future"
-  for (let d = today; d <= totalDays; d++) {
+  // Today is future unless it has worked hours
+  const startDay = todayHasData ? today + 1 : today;
+  for (let d = startDay; d <= totalDays; d++) {
     days.push(d);
   }
   return days;
