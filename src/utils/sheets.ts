@@ -1,5 +1,5 @@
 import type { WorkedHoursMap } from '../types';
-import { getSheetTabName, getCurrentMonthYear } from './calendar';
+import { getSheetTabName, getSheetTabNameLong, getCurrentMonthYear } from './calendar';
 
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
 
@@ -81,39 +81,49 @@ export function requestAccessToken(): Promise<string> {
   });
 }
 
+function fetchWithAuth(url: string, token: string) {
+  return fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+}
+
 export async function fetchSheetData(sheetId: string): Promise<WorkedHoursMap> {
   if (!sheetId) throw new Error('No Google Sheet ID configured');
 
   const token = accessToken || (await requestAccessToken());
-  const tabName = getSheetTabName();
-  const range = `'${tabName}'!B6:H`;
+  const tabNames = [getSheetTabName(), getSheetTabNameLong()];
 
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  for (const tabName of tabNames) {
+    const range = `'${tabName}'!B6:H`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
+    const res = await fetchWithAuth(url, token);
 
-  if (res.status === 401) {
-    // Token expired, clear and request new one
-    clearToken();
-    const newToken = await requestAccessToken();
-    const retryRes = await fetch(url, {
-      headers: { Authorization: `Bearer ${newToken}` },
-    });
-    if (!retryRes.ok) throw new Error(`Sheet API error: ${retryRes.status}`);
-    return parseSheetResponse(await retryRes.json());
+    if (res.status === 400) {
+      // Tab not found, try next name
+      continue;
+    }
+
+    if (res.status === 401) {
+      clearToken();
+      const newToken = await requestAccessToken();
+      const retryRes = await fetchWithAuth(url, newToken);
+      if (retryRes.status === 400) continue;
+      if (!retryRes.ok) throw new Error(`Sheet API error: ${retryRes.status}`);
+      return parseSheetResponse(await retryRes.json());
+    }
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.error('Sheet API error:', res.status, body);
+      throw new Error(`Sheet API error: ${res.status}`);
+    }
+
+    const json = await res.json();
+    console.log(`Sheet API response (tab "${tabName}"):`, json);
+    const result = parseSheetResponse(json);
+    console.log('Parsed worked hours:', result);
+    return result;
   }
 
-  if (!res.ok) {
-    const body = await res.text();
-    console.error('Sheet API error:', res.status, body);
-    throw new Error(`Sheet API error: ${res.status}`);
-  }
-  const json = await res.json();
-  console.log('Sheet API response:', json);
-  const result = parseSheetResponse(json);
-  console.log('Parsed worked hours:', result);
-  return result;
+  throw new Error(`No tab found for "${tabNames[0]}" or "${tabNames[1]}"`);
 }
 
 function parseSheetResponse(data: { values?: string[][] }): WorkedHoursMap {

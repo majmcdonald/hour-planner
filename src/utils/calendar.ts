@@ -19,6 +19,12 @@ export function getSheetTabName(): string {
   return `${monthShort} ${now.getFullYear()}`;
 }
 
+export function getSheetTabNameLong(): string {
+  const now = new Date();
+  const monthLong = now.toLocaleString('en-US', { month: 'long' });
+  return `${monthLong} ${now.getFullYear()}`;
+}
+
 export function getFirstDayOfWeek(): number {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 1).getDay();
